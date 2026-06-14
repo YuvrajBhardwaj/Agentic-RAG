@@ -1,0 +1,74 @@
+[
+  {
+    "id": "rag-101",
+    "text": "RAG (Retrieval-Augmented Generation) combines document retrieval with LLM generation. It retrieves relevant documents and uses them as context for generating accurate, grounded responses.",
+    "meta": {
+      "source": "docs",
+      "topic": "rag",
+      "difficulty": "beginner"
+    }
+  },
+  {
+    "id": "rag-102",
+    "text": "RAG improves LLM accuracy by providing factual context. This reduces hallucination and ensures responses are grounded in real data from your knowledge base.",
+    "meta": {
+      "source": "docs",
+      "topic": "rag",
+      "difficulty": "beginner"
+    }
+  },
+  {
+    "id": "embeddings-101",
+    "text": "Embeddings convert text to dense vectors. Models like sentence-transformers create semantic representations that enable similarity search. FAISS provides efficient nearest-neighbor search.",
+    "meta": {
+      "source": "docs",
+      "topic": "embeddings",
+      "difficulty": "intermediate"
+    }
+  },
+  {
+    "id": "agents-101",
+    "text": "Agentic systems use planning, tool use, and reasoning. An agent planner decides which tools to use, executes them in sequence, and synthesizes results into coherent responses.",
+    "meta": {
+      "source": "docs",
+      "topic": "agents",
+      "difficulty": "advanced"
+    }
+  },
+  {
+    "id": "rag-101",
+    "text": "RAG (Retrieval-Augmented Generation) combines document retrieval with LLM generation. It retrieves relevant documents and uses them as context for generating accurate, grounded responses.",
+    "meta": {
+      "source": "docs",
+      "topic": "rag",
+      "difficulty": "beginner"
+    }
+  },
+  {
+    "id": "rag-102",
+    "text": "RAG improves LLM accuracy by providing factual context. This reduces hallucination and ensures responses are grounded in real data from your knowledge base.",
+    "meta": {
+      "source": "docs",
+      "topic": "rag",
+      "difficulty": "beginner"
+    }
+  },
+  {
+    "id": "embeddings-101",
+    "text": "Embeddings convert text to dense vectors. Models like sentence-transformers create semantic representations that enable similarity search. FAISS provides efficient nearest-neighbor search.",
+    "meta": {
+      "source": "docs",
+      "topic": "embeddings",
+      "difficulty": "intermediate"
+    }
+  },
+  {
+    "id": "agents-101",
+    "text": "Agentic systems use planning, tool use, and reasoning. An agent planner decides which tools to use, executes them in sequence, and synthesizes results into coherent responses.",
+    "meta": {
+      "source": "docs",
+      "topic": "agents",
+      "difficulty": "advanced"
+    }
+  }
+]

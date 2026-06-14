@@ -1,0 +1,788 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Agentic RAG — Knowledge Archive</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --bg-deep:#06070e;
+  --bg-surface:#0c0e18;
+  --bg-elevated:#14172b;
+  --bg-hover:#1c1f3a;
+  --border:#1e2240;
+  --border-hover:#2d3362;
+  --accent:#818cf8;
+  --accent-soft:rgba(129,140,248,0.12);
+  --accent-glow:rgba(129,140,248,0.08);
+  --amber:#f59e0b;
+  --amber-soft:rgba(245,158,11,0.1);
+  --text:#e8ecf4;
+  --text-secondary:#8892b0;
+  --text-muted:#4a5079;
+  --success:#10b981;
+  --success-soft:rgba(16,185,129,0.12);
+  --error:#ef4444;
+  --error-soft:rgba(239,68,68,0.12);
+  --radius:10px;
+  --radius-sm:6px;
+}
+
+html{height:100%}
+body{
+  font-family:'Inter',-apple-system,sans-serif;
+  background:var(--bg-deep);
+  color:var(--text);
+  min-height:100vh;
+  position:relative;
+  overflow-x:hidden;
+}
+
+/* Ambient background glow */
+body::before{
+  content:'';
+  position:fixed;
+  inset:0;
+  background:
+    radial-gradient(ellipse 80% 50% at 15% 20%, rgba(129,140,248,0.04) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 40% at 85% 70%, rgba(129,140,248,0.03) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 50% 50%, rgba(129,140,248,0.02) 0%, transparent 60%);
+  pointer-events:none;
+  z-index:0;
+}
+
+/* Animated glow drift */
+@keyframes glowDrift{
+  0%,100%{transform:translate(0,0) scale(1)}
+  33%{transform:translate(-2%,1%) scale(1.02)}
+  66%{transform:translate(1%,-1%) scale(0.98)}
+}
+body::before{animation:glowDrift 30s ease-in-out infinite}
+
+.layout{
+  display:grid;
+  grid-template-columns:340px 1fr 320px;
+  gap:16px;
+  max-width:1360px;
+  margin:0 auto;
+  padding:20px;
+  min-height:100vh;
+  position:relative;
+  z-index:1;
+}
+@media(max-width:1100px){.layout{grid-template-columns:1fr;max-width:680px}}
+
+/* ── Panels ── */
+.panel{
+  background:var(--bg-surface);
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:20px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+  position:relative;
+  transition:border-color .3s,box-shadow .3s;
+}
+.panel:hover{border-color:var(--border-hover)}
+
+.panel-header{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding-bottom:12px;
+  border-bottom:1px solid var(--border);
+}
+.panel-header .dot{
+  width:8px;height:8px;
+  border-radius:50%;
+  background:var(--accent);
+  flex-shrink:0;
+  opacity:.6;
+}
+.panel-header h2{
+  font-size:13px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:1px;
+  color:var(--text-secondary);
+}
+
+.panel-label{
+  font-size:11px;
+  font-weight:600;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+  color:var(--text-muted);
+  margin-bottom:2px;
+}
+
+/* ── Drop Zone ── */
+.drop-zone{
+  position:relative;
+  border:1.5px dashed var(--border);
+  border-radius:var(--radius);
+  padding:28px 20px;
+  text-align:center;
+  cursor:pointer;
+  transition:all .35s;
+  background:var(--bg-elevated);
+}
+.drop-zone:hover,.drop-zone.dragover{
+  border-color:var(--accent);
+  background:var(--accent-soft);
+  box-shadow:0 0 30px var(--accent-glow);
+}
+.drop-zone.dragover{transform:scale(1.01)}
+.drop-zone-icon{font-size:28px;margin-bottom:6px;display:block}
+.drop-zone-text{font-size:13px;color:var(--text-secondary)}
+.drop-zone-text strong{color:var(--accent)}
+.drop-zone-hint{font-size:11px;color:var(--text-muted);margin-top:4px}
+.drop-zone input{display:none}
+
+/* ── File Cards ── */
+.file-list{display:flex;flex-direction:column;gap:6px}
+.file-card{
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:10px 12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  transition:all .25s;
+}
+.file-card:hover{border-color:var(--border-hover)}
+.file-card .icon{font-size:16px;flex-shrink:0;opacity:.7}
+.file-card .info{flex:1;min-width:0}
+.file-card .name{font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.file-card .meta{font-size:11px;color:var(--text-muted);margin-top:1px}
+.file-card .status{
+  font-size:10px;font-weight:600;
+  padding:2px 8px;
+  border-radius:8px;
+  flex-shrink:0;
+  letter-spacing:.3px;
+}
+.file-card .status.queued{background:var(--bg-hover);color:var(--text-muted)}
+.file-card .status.processing{background:var(--accent-soft);color:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+.file-card .status.done{background:var(--success-soft);color:var(--success)}
+.file-card .status.error{background:var(--error-soft);color:var(--error)}
+.file-card .bar{width:100%;height:2px;background:var(--bg-hover);border-radius:2px;margin-top:5px;overflow:hidden}
+.file-card .bar-fill{height:100%;border-radius:2px;transition:width .45s ease;background:linear-gradient(90deg,var(--accent),#a78bfa)}
+
+/* ── Buttons ── */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  padding:8px 16px;
+  border:none;
+  border-radius:var(--radius-sm);
+  font-size:12.5px;
+  font-weight:600;
+  cursor:pointer;
+  transition:all .2s;
+  font-family:inherit;
+  white-space:nowrap;
+}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
+.btn-primary{
+  background:var(--accent);
+  color:#fff;
+  box-shadow:0 1px 8px var(--accent-glow);
+}
+.btn-primary:hover:not(:disabled){
+  background:#727cf5;
+  transform:translateY(-1px);
+  box-shadow:0 2px 16px var(--accent-glow);
+}
+.btn-primary:active:not(:disabled){transform:translateY(0)}
+.btn-secondary{
+  background:var(--bg-hover);
+  color:var(--text-secondary);
+}
+.btn-secondary:hover:not(:disabled){background:var(--border-hover);color:var(--text)}
+.btn-ghost{
+  background:transparent;
+  color:var(--accent);
+  border:1px solid var(--border);
+}
+.btn-ghost:hover:not(:disabled){border-color:var(--accent)}
+.btn-sm{padding:6px 12px;font-size:11.5px}
+
+/* ── Inputs ── */
+input,textarea,select{
+  padding:9px 12px;
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  color:var(--text);
+  font-size:13px;
+  width:100%;
+  outline:none;
+  transition:border .25s,box-shadow .25s;
+  font-family:inherit;
+}
+input:focus,textarea:focus{
+  border-color:var(--accent);
+  box-shadow:0 0 0 3px var(--accent-soft);
+}
+textarea{resize:vertical;min-height:60px;line-height:1.5}
+label{font-size:11.5px;font-weight:600;color:var(--text-secondary);display:block;margin-bottom:5px;letter-spacing:.3px}
+
+/* ── Output boxes ── */
+.output-box{
+  background:var(--bg-elevated);
+  border:1px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:12px;
+  min-height:80px;
+  max-height:360px;
+  overflow-y:auto;
+  font-size:13px;
+  line-height:1.6;
+}
+.output-box .event{
+  padding:8px 10px;
+  margin-bottom:5px;
+  border-radius:var(--radius-sm);
+  border-left:3px solid var(--border);
+  background:var(--bg-surface);
+  font-size:12.5px;
+}
+.output-box .event.plan-start{border-left-color:var(--accent);background:var(--accent-soft)}
+.output-box .event.step{border-left-color:var(--accent)}
+.output-box .event.complete{border-left-color:var(--success);background:var(--success-soft)}
+.output-box .event.error{border-left-color:var(--error);background:var(--error-soft)}
+.output-box .event-label{
+  font-size:9.5px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:1px;
+  color:var(--accent);
+  margin-bottom:3px;
+}
+.output-box .event.complete .event-label{color:var(--success)}
+.output-box .event.error .event-label{color:var(--error)}
+
+/* ── Badges ── */
+.badge-grid{display:flex;flex-wrap:wrap;gap:4px}
+.badge{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:3px 9px;
+  border-radius:6px;
+  font-size:10.5px;
+  font-weight:600;
+  letter-spacing:.2px;
+}
+.badge-default{background:var(--bg-hover);color:var(--text-muted)}
+.badge-primary{background:var(--accent-soft);color:var(--accent);border:1px solid rgba(129,140,248,.25)}
+.badge-success{background:var(--success-soft);color:var(--success)}
+.badge-error{background:var(--error-soft);color:var(--error)}
+
+/* ── Stats ── */
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.stat{
+  text-align:center;
+  padding:14px 10px;
+  background:var(--bg-elevated);
+  border-radius:var(--radius-sm);
+  border:1px solid var(--border);
+  transition:border-color .25s;
+}
+.stat:hover{border-color:var(--border-hover)}
+.stat-value{
+  font-size:22px;
+  font-weight:700;
+  color:var(--accent);
+  font-variant-numeric:tabular-nums;
+}
+.stat-label{
+  font-size:10px;
+  color:var(--text-muted);
+  margin-top:3px;
+  text-transform:uppercase;
+  letter-spacing:.6px;
+}
+
+/* ── Progress ── */
+.progress-wrap{display:none;gap:8px;flex-direction:column}
+.progress-wrap.visible{display:flex}
+.progress-header{display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted)}
+.progress-track{height:3px;background:var(--bg-hover);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width .4s ease;background:linear-gradient(90deg,var(--accent),#a78bfa)}
+
+/* Source list */
+.source-item{
+  display:flex;
+  justify-content:space-between;
+  padding:4px 0;
+  font-size:12px;
+  border-bottom:1px solid var(--bg-hover);
+}
+.source-item:last-child{border-bottom:none}
+.source-item span:last-child{color:var(--accent);font-weight:600}
+
+/* ── Animations ── */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .3s ease-out}
+.spinner{
+  display:inline-block;
+  width:14px;height:14px;
+  border:2px solid var(--border);
+  border-top-color:var(--accent);
+  border-radius:50%;
+  animation:spin .6s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bg-hover);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--border-hover)}
+</style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- ─── Left: Pipeline ─── -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="dot"></span>
+      <h2>Pipeline</h2>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      <span class="drop-zone-icon">📄</span>
+      <div class="drop-zone-text">Drop PDFs here or <strong>browse</strong></div>
+      <div class="drop-zone-hint">Up to 5 files — processed with live progress</div>
+      <input type="file" id="fileInput" multiple accept=".pdf">
+    </div>
+
+    <div id="fileList" class="file-list" style="display:none"></div>
+
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" id="uploadBtn" disabled style="flex:1">Upload &amp; Process</button>
+      <button class="btn btn-ghost btn-sm" id="clearBtn" disabled>Clear</button>
+    </div>
+
+    <div class="progress-wrap" id="uploadStatus">
+      <div class="progress-header">
+        <span id="progressText">0 / 0 files</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+
+    <div id="badgeArea" class="badge-grid"></div>
+  </div>
+
+  <!-- ─── Center: Query ─── -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="dot"></span>
+      <h2>Query</h2>
+    </div>
+
+    <div>
+      <label>Ask a question</label>
+      <textarea id="queryInput" rows="2" placeholder="e.g. What is RAG?">What is machine learning?</textarea>
+    </div>
+
+    <div style="display:flex;gap:8px">
+      <input type="number" id="topK" value="3" min="1" max="10" style="width:65px;flex-shrink:0" title="Documents to retrieve">
+      <button class="btn btn-primary" id="queryBtn" style="flex:1">Query</button>
+      <button class="btn btn-secondary" id="streamBtn" style="flex:1">Stream</button>
+    </div>
+
+    <div>
+      <label>Answer</label>
+      <div id="queryOutput" class="output-box">
+        <div style="color:var(--text-muted);text-align:center;padding:20px;font-size:13px">Ask a question to see results</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Right: Knowledge Base ─── -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="dot"></span>
+      <h2>Knowledge Base</h2>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-value" id="statDocs">0</div><div class="stat-label">Documents</div></div>
+      <div class="stat"><div class="stat-value" id="statVectors">0</div><div class="stat-label">Vectors</div></div>
+      <div class="stat"><div class="stat-value" id="statQueries">0</div><div class="stat-label">Queries</div></div>
+    </div>
+
+    <div>
+      <label>Sources</label>
+      <div id="sourcesBox" class="output-box" style="min-height:40px;max-height:110px">
+        <div style="color:var(--text-muted);font-size:12px">No documents ingested yet</div>
+      </div>
+    </div>
+
+    <div>
+      <label>Session Log</label>
+      <div id="logBox" class="output-box" style="min-height:55px;max-height:180px;font-size:12px">
+        <div style="color:var(--text-muted)">Ready</div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:auto">
+      <button class="btn btn-secondary btn-sm" id="ingestSampleBtn" style="flex:1">Load Samples</button>
+      <button class="btn btn-ghost btn-sm" id="refreshStatsBtn" style="flex:1">Refresh</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let queryCount = 0;
+let selectedFiles = [];
+let docCount = 0;
+
+// ── Helpers ─────────────────────────────────────────────
+function log(msg, type='info') {
+  const el = document.getElementById('logBox');
+  const c = {info:'var(--text-secondary)', success:'var(--success)', error:'var(--error)'};
+  el.innerHTML += `<div style="color:${c[type]||c.info};padding:2px 0">${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function bind(id, fn) { document.getElementById(id).addEventListener('click', fn); }
+
+// ── Drop zone ───────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+
+dropZone.addEventListener('click', () => fileInput.click());
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('dragover');
+  handleFiles(Array.from(e.dataTransfer.files));
+});
+
+fileInput.addEventListener('change', () => handleFiles(Array.from(fileInput.files)));
+
+function handleFiles(files) {
+  const pdfs = files.filter(f => f.name.toLowerCase().endsWith('.pdf'));
+  if (pdfs.length === 0) { alert('Please select PDF files.'); return; }
+  selectedFiles = pdfs.slice(0, 5);
+  renderFileCards();
+  document.getElementById('uploadBtn').disabled = false;
+  document.getElementById('clearBtn').disabled = false;
+}
+
+function renderFileCards() {
+  const list = document.getElementById('fileList');
+  list.style.display = 'block';
+  list.innerHTML = '';
+  selectedFiles.forEach((f, i) => {
+    const size = f.size > 1024*1024 ? (f.size/1024/1024).toFixed(1)+' MB' : (f.size/1024).toFixed(0)+' KB';
+    list.innerHTML += `
+      <div class="file-card fade-in" id="fc-${i}">
+        <div class="icon">📄</div>
+        <div class="info">
+          <div class="name">${f.name}</div>
+          <div class="meta">${size}</div>
+          <div class="bar"><div class="bar-fill" id="bar-${i}" style="width:0%"></div></div>
+        </div>
+        <div class="status queued" id="status-${i}">QUEUED</div>
+      </div>`;
+  });
+}
+
+// ── Clear ───────────────────────────────────────────────
+document.getElementById('clearBtn').addEventListener('click', () => {
+  selectedFiles = [];
+  fileInput.value = '';
+  document.getElementById('fileList').style.display = 'none';
+  document.getElementById('uploadBtn').disabled = true;
+  document.getElementById('clearBtn').disabled = true;
+  document.getElementById('fileList').innerHTML = '';
+  document.getElementById('uploadStatus').className = 'progress-wrap';
+});
+
+// ── Upload (SSE stream) ─────────────────────────────────
+document.getElementById('uploadBtn').addEventListener('click', async () => {
+  if (selectedFiles.length === 0) return;
+  const btn = document.getElementById('uploadBtn');
+  btn.disabled = true;
+  btn.textContent = 'Processing...';
+
+  document.getElementById('uploadStatus').className = 'progress-wrap visible';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressText').textContent = `0 / ${selectedFiles.length} files`;
+  document.getElementById('badgeArea').innerHTML = '';
+
+  // Reset all cards
+  selectedFiles.forEach((_, i) => {
+    document.getElementById(`bar-${i}`).style.width = '0%';
+    const s = document.getElementById(`status-${i}`);
+    s.className = 'status queued'; s.textContent = 'QUEUED';
+  });
+
+  // Add processing badges
+  selectedFiles.forEach((f, i) => {
+    const b = document.createElement('span');
+    b.className = 'badge badge-default'; b.id = `badge-${i}`;
+    b.textContent = `${f.name}`;
+    document.getElementById('badgeArea').appendChild(b);
+  });
+
+  const formData = new FormData();
+  selectedFiles.forEach(f => formData.append('files', f));
+
+  try {
+    // Try SSE stream first, fall back to regular upload
+    const resp = await fetch(`${API}/upload-pdf/stream`, { method: 'POST', body: formData });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    let doneCount = 0;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const ev = JSON.parse(line.slice(6));
+          const idx = ev.index;
+          const fn = ev.filename || '';
+          const badge = document.getElementById(`badge-${idx}`);
+
+          switch (ev.event) {
+            case 'file_start':
+              if (badge) { badge.className = 'badge badge-primary'; badge.textContent = `⏳ ${fn}`; }
+              setCardStatus(idx, 'processing', '⬆ UPLD');
+              setBar(idx, 15);
+              break;
+            case 'file_reading':
+              setBar(idx, 30);
+              setCardStatus(idx, 'processing', '📖 READ');
+              break;
+            case 'file_extracting':
+              setBar(idx, 50);
+              setCardStatus(idx, 'processing', '🔍 EXTR');
+              break;
+            case 'file_embedding':
+              setBar(idx, 75);
+              setCardStatus(idx, 'processing', '🧠 EMB');
+              if (badge) { badge.className = 'badge badge-primary'; badge.textContent = `🧠 ${fn}`; }
+              break;
+            case 'file_done':
+              setBar(idx, 100);
+              setCardStatus(idx, 'done', `${ev.pages}p ✓`);
+              if (badge) { badge.className = 'badge badge-success'; badge.textContent = `✓ ${fn} (${ev.pages}pg)`; }
+              doneCount++;
+              docCount++;
+              break;
+            case 'file_error':
+              setCardStatus(idx, 'error', ev.error?.slice(0,12) || 'ERR');
+              if (badge) { badge.className = 'badge badge-error'; badge.textContent = `✗ ${fn}`; }
+              doneCount++;
+              break;
+            case 'batch_done':
+              log(`Batch complete: ${doneCount}/${selectedFiles.length} files`, doneCount===selectedFiles.length?'success':'error');
+              break;
+          }
+
+          // overall progress
+          const pct = Math.round((doneCount / selectedFiles.length) * 100);
+          document.getElementById('progressFill').style.width = pct + '%';
+          document.getElementById('progressText').textContent = `${doneCount} / ${selectedFiles.length} files`;
+          document.getElementById('progressPct').textContent = pct + '%';
+          updateStats();
+
+        } catch (e) { /* skip parse errors */ }
+      }
+    }
+  } catch (err) {
+    log(`SSE upload failed, falling back to batch upload: ${err.message}`, 'error');
+    // Fallback to regular upload
+    try {
+      const resp = await fetch(`${API}/upload-pdf`, { method: 'POST', body: formData });
+      const data = await resp.json();
+      data.results.forEach((r, i) => {
+        if (r.status === 'success') {
+          setCardStatus(i, 'done', `${r.pages}p ✓`);
+          setBar(i, 100);
+          const b = document.getElementById(`badge-${i}`);
+          if (b) { b.className = 'badge badge-success'; b.textContent = `✓ ${r.filename} (${r.pages}pg)`; }
+          docCount++;
+        } else {
+          setCardStatus(i, 'error', 'ERR');
+          setBar(i, 0);
+          const b = document.getElementById(`badge-${i}`);
+          if (b) { b.className = 'badge badge-error'; b.textContent = `✗ ${r.filename}`; }
+        }
+      });
+      const pct = Math.round((data.successful / data.total) * 100);
+      document.getElementById('progressFill').style.width = pct + '%';
+      document.getElementById('progressText').textContent = `${data.successful} / ${data.total} files`;
+      document.getElementById('progressPct').textContent = pct + '%';
+      updateStats();
+      log(`Batch done: ${data.successful}/${data.total} files`, data.failed===0?'success':'error');
+    } catch (e2) {
+      log(`Upload failed: ${e2.message}`, 'error');
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Upload & Process';
+});
+
+function setCardStatus(idx, cls, text) {
+  const el = document.getElementById(`status-${idx}`);
+  if (el) { el.className = `status ${cls}`; el.textContent = text; }
+}
+function setBar(idx, pct) {
+  const el = document.getElementById(`bar-${idx}`);
+  if (el) el.style.width = pct + '%';
+}
+
+// ── Query ───────────────────────────────────────────────
+async function doQuery(stream) {
+  const btn = stream ? document.getElementById('streamBtn') : document.getElementById('queryBtn');
+  const q = document.getElementById('queryInput').value.trim();
+  if (!q) return;
+  const k = parseInt(document.getElementById('topK').value) || 3;
+  const out = document.getElementById('queryOutput');
+
+  btn.disabled = true;
+  queryCount++;
+  document.getElementById('statQueries').textContent = queryCount;
+  out.innerHTML = '<div style="display:flex;gap:8px;align-items:center;padding:10px"><span class="spinner"></span> Processing...</div>';
+
+  try {
+    if (stream) {
+      const resp = await fetch(`${API}/query/stream`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({query: q, top_k: k})
+      });
+      if (!resp.ok) { throw new Error(`Server ${resp.status}: ${(await resp.json()).detail}`); }
+      out.innerHTML = '';
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let ec = 0;
+      while (true) {
+        const {done, value} = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, {stream:true});
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const ev = JSON.parse(line.slice(6));
+            ec++;
+            const cls = ({plan_start:'plan-start',step:'step',plan_complete:'complete',error:'error'})[ev.event]||'step';
+            out.innerHTML += `<div class="event ${cls}"><div class="event-label">${ev.event.toUpperCase()}</div>${ev.message||ev.goal||JSON.stringify(ev).slice(0,200)}</div>`;
+            out.scrollTop = out.scrollHeight;
+          } catch(_) {}
+        }
+      }
+      out.innerHTML += `<div class="event complete"><div class="event-label">DONE</div>${ec} events received</div>`;
+      log(`Stream query: ${ec} events`, 'success');
+    } else {
+      const resp = await fetch(`${API}/query`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({query: q, top_k: k})
+      });
+      if (!resp.ok) { throw new Error(`Server ${resp.status}: ${(await resp.json()).detail}`); }
+      const data = await resp.json();
+      const sources = data.sources || [];
+      out.innerHTML = `<div class="event complete"><div class="event-label">ANSWER</div><strong>${data.answer}</strong><br><br><span style="font-size:11px;color:var(--text-muted)">Sources: ${sources.length} doc(s)</span></div>`;
+      log(`Sync query: ${(data.answer||'').slice(0,60)}...`, 'success');
+    }
+  } catch (err) {
+    out.innerHTML = `<div class="event error"><div class="event-label">ERROR</div>${err.message}</div>`;
+    log(`Query error: ${err.message}`, 'error');
+  }
+  btn.disabled = false;
+}
+
+document.getElementById('queryBtn').addEventListener('click', () => doQuery(false));
+document.getElementById('streamBtn').addEventListener('click', () => doQuery(true));
+document.getElementById('queryInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doQuery(false); }
+});
+
+// ── Stats ───────────────────────────────────────────────
+async function updateStats() {
+  try {
+    const r = await fetch(`${API}/store-stats`);
+    const s = await r.json();
+    document.getElementById('statDocs').textContent = s.total_documents;
+    document.getElementById('statVectors').textContent = s.index_size;
+    const sb = document.getElementById('sourcesBox');
+    const keys = Object.keys(s.sources);
+    if (keys.length === 0) {
+      sb.innerHTML = '<div style="color:var(--text-muted);font-size:12px">No documents</div>';
+    } else {
+      sb.innerHTML = keys.map(k => `<div class="source-item"><span>${k}</span><span>${s.sources[k]}</span></div>`).join('');
+    }
+  } catch(_) {}
+}
+
+document.getElementById('refreshStatsBtn').addEventListener('click', updateStats);
+
+// ── Load Samples ────────────────────────────────────────
+document.getElementById('ingestSampleBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('ingestSampleBtn');
+  btn.disabled = true; btn.textContent = 'Loading...';
+  const samples = [
+    {id:'rag-101', text:'RAG (Retrieval-Augmented Generation) combines document retrieval with LLM generation. It retrieves relevant documents and uses them as context for accurate responses.', meta:{source:'sample', topic:'rag'}},
+    {id:'rag-102', text:'RAG improves LLM accuracy by providing factual context. This reduces hallucination and ensures responses are grounded in real data.', meta:{source:'sample', topic:'rag'}},
+    {id:'emb-101', text:'Embeddings convert text to dense vectors. sentence-transformers create semantic representations enabling similarity search. FAISS provides efficient nearest-neighbor search.', meta:{source:'sample', topic:'embeddings'}},
+    {id:'agents-101', text:'Agentic systems use planning, tool use, and reasoning. An agent planner decides which tools to use, executes them in sequence, and synthesizes results.', meta:{source:'sample', topic:'agents'}},
+  ];
+  try {
+    const r = await fetch(`${API}/ingest`, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({docs:samples})});
+    const d = await r.json();
+    docCount += d.ingested;
+    updateStats();
+    log(`Ingested ${d.ingested} sample documents`, 'success');
+  } catch(e) { log(`Sample load failed: ${e.message}`, 'error'); }
+  btn.disabled = false; btn.textContent = 'Load Samples';
+});
+
+// ── Init ────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  try {
+    const r = await fetch(`${API}/health`);
+    const h = await r.json();
+    log(`Connected - v${h.version}`, 'success');
+    updateStats();
+  } catch(e) {
+    log(`Cannot connect to ${API}`, 'error');
+  }
+});
+</script>
+</body>
+</html>

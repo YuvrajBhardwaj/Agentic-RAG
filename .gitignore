@@ -1,0 +1,10 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+data/
+*.index
+*.pkl
+.env
+.env.local
+*.log
