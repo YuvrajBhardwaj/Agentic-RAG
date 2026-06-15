@@ -3,7 +3,7 @@
 Production-ready Agentic RAG backend using FastAPI, FAISS, sentence-transformers, and a pluggable Gemini client. Features include:
 - **Vector store** (FAISS + sentence-transformers) for semantic search
 - **Agent planner** with tool interface (retrieval, generation, reasoning)
-- **SSE streaming** for real-time agentic responses (similar to NSim)
+- **SSE streaming** for real-time agentic responses
 - **Modular design** for easy extension and multi-agent orchestration
 
 ## Quickstart
