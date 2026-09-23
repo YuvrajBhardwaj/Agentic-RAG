@@ -1,5 +1,6 @@
 import os
 import json
+import threading
 import faiss
 import numpy as np
 from typing import List, Dict, Any, Optional
@@ -16,6 +17,7 @@ class VectorStore:
         self.model = SentenceTransformer(EMB_MODEL)
         self.index_file = os.path.join(self.persist_dir, "faiss.index")
         self.meta_file = os.path.join(self.persist_dir, "meta.json")
+        self._lock = threading.Lock()
 
         self.dim = self.model.get_embedding_dimension()
         self.index: Optional[faiss.IndexFlatL2] = None
@@ -47,10 +49,11 @@ class VectorStore:
         embs = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=False)
         if embs.ndim == 1:
             embs = np.expand_dims(embs, axis=0)
-        self.index.add(embs.astype('float32'))
-        for i, mid in enumerate(ids):
-            self.metadatas.append({"id": mid, "text": texts[i], "meta": metas[i]})
-        self._save()
+        with self._lock:
+            self.index.add(embs.astype('float32'))
+            for i, mid in enumerate(ids):
+                self.metadatas.append({"id": mid, "text": texts[i], "meta": metas[i]})
+            self._save()
 
     def similarity_search(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         if self.index.ntotal == 0 or not self.metadatas:

@@ -30,12 +30,25 @@ pip install -r requirements.txt
 ```
 
 ### Step 2: Configure API Key
-The `.env` file is already created with your Gemini API key:
+Copy the template and add your own key (never commit `.env`):
+```bash
+cp .env.example .env
 ```
-GEMINI_API_KEY=AIzaSyA7ONburKih7H0uCggvJvVmkeuzk4YGBXQ
-GEMINI_MODEL=gemini-3.5-flash
+```
+# LLM (Groq is the default — app/main.py uses groq_client)
+GROQ_API_KEY=your_groq_api_key_here
+GROQ_MODEL=mixtral-8x7b-32768
+# Optional legacy Gemini path (demo.py only)
+# GEMINI_API_KEY=your_gemini_key_here
+# GEMINI_MODEL=gemini-2.0-flash
 RAG_DATA_DIR=data
+# Optional production hardening (see PRODUCTION_CHECKLIST.md)
+# RAG_API_KEY=your_long_random_service_key
+# ALLOWED_ORIGINS=https://your-frontend.com
+# RATE_LIMIT_PER_MIN=60
 ```
+
+> ⚠️ **Security:** if you ever pasted a real key into docs/chat, rotate it immediately in Google AI Studio / Groq console. History is forever.
 
 **Important**: `.env` is in `.gitignore` and won't be committed to git.
 
@@ -184,21 +197,17 @@ pm2 start app.main:app --name "rag-api" -- uvicorn --host 0.0.0.0 --port 8000
 # (edit /etc/nginx/sites-available/default)
 ```
 
-### Option 2: Docker
+### Option 2: Docker (recommended)
 ```dockerfile
-FROM python:3.11
-WORKDIR /app
-COPY requirements.txt .
-RUN pip install -r requirements.txt
-COPY app app
-COPY .env .env
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# see ./Dockerfile (non-root, no secrets baked in)
 ```
-
 ```bash
 docker build -t agentic-rag .
-docker run -p 8000:8000 agentic-rag
+docker run -p 8000:8000 --env-file .env agentic-rag
+# or full stack:
+docker compose up --build
 ```
+> Never `COPY .env .env` into an image. Pass secrets at runtime via `--env-file` / compose `env_file`.
 
 ### Option 3: Cloud (Google Cloud, AWS Lambda)
 - FastAPI is serverless-compatible

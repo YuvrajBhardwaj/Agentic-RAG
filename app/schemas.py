@@ -10,11 +10,13 @@ class Doc(BaseModel):
 
 class IngestRequest(BaseModel):
     docs: List[Doc]
+    tenant_id: Optional[str] = None
 
 
 class QueryRequest(BaseModel):
     query: str
     top_k: Optional[int] = 5
+    tenant_id: Optional[str] = None
 
 
 class QueryResponse(BaseModel):

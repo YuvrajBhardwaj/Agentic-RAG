@@ -1,0 +1,15 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      RAG_DATA_DIR: /app/data
+    volumes:
+      - rag-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  rag-data:
